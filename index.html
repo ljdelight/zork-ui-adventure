@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#14121a" />
+    <meta name="description" content="A dark All Hallows' Eve text adventure, in the year of the Pestilence." />
+    <title>The Silent Bell</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M8 24c0-6 1-14 8-14s8 8 8 14c2 1 2 2-8 2s-10-1-8-2z' fill='%236a9a7e'/%3E%3Ccircle cx='16' cy='27' r='2.5' fill='%23e0a95a'/%3E%3C/svg%3E" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=IBM+Plex+Mono:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <h1 class="brand">The Silent Bell</h1>
+        <div class="stats" id="stats" aria-live="polite"></div>
+        <div class="top-actions">
+          <button type="button" class="ghost demo-btn" id="btn-demo" title="Lazy mode: watch the game play itself" aria-label="Play for me"><span class="long">Play for me</span><span class="short" aria-hidden="true">▶</span></button>
+          <button type="button" class="ghost" id="btn-help" title="Help" aria-label="Help"><span class="long">Help</span><span class="short" aria-hidden="true">?</span></button>
+          <button type="button" class="ghost" id="btn-restart" title="Restart" aria-label="Restart"><span class="long">Restart</span><span class="short" aria-hidden="true">↺</span></button>
+        </div>
+      </header>
+
+      <main class="layout">
+        <section class="scene-panel" aria-label="Illustration of your location">
+          <div class="frame">
+            <div class="scene" id="scene"></div>
+            <div class="caption" id="caption"></div>
+          </div>
+        </section>
+
+        <section class="console">
+          <div class="log" id="log" role="log" aria-live="polite"></div>
+
+          <div class="controls">
+            <div class="chips" id="chips"></div>
+            <div class="compass" id="compass" aria-label="Movement">
+              <button type="button" data-dir="north" class="c-n" aria-label="North">N</button>
+              <button type="button" data-dir="west" class="c-w" aria-label="West">W</button>
+              <span class="c-rose" aria-hidden="true">✦</span>
+              <button type="button" data-dir="east" class="c-e" aria-label="East">E</button>
+              <button type="button" data-dir="south" class="c-s" aria-label="South">S</button>
+              <button type="button" data-dir="up" class="c-u" aria-label="Up">▲</button>
+              <button type="button" data-dir="down" class="c-d" aria-label="Down">▼</button>
+            </div>
+          </div>
+
+          <div class="prompt" id="prompt" role="group" aria-label="Command prompt">
+            <span class="caret" aria-hidden="true">&gt;</span>
+            <input
+              id="input"
+              type="search"
+              autocomplete="off"
+              data-1p-ignore
+              data-lpignore="true"
+              data-bwignore
+              data-form-type="other"
+              inputmode="text"
+              enterkeyhint="send"
+              autocapitalize="off"
+              autocorrect="off"
+              spellcheck="false"
+              placeholder="What do you do?"
+              aria-label="Command"
+            />
+            <button type="button" id="btn-enter">Enter</button>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
