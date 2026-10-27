@@ -1,11 +1,8 @@
 import './style.css';
-import { Game } from './engine';
-import { renderScene } from './scenes';
-import type { Dir, Output, State } from './types';
-import { WALKTHROUGH } from './walkthrough';
-import { ITEMS, MAX_SCORE } from './world';
+import { Game, type Dir, type Output, type State } from './engine';
+import story from './story';
 
-const SAVE_KEY = 'silent-bell-save-v2';
+const SAVE_KEY = `${story.id}-save-v2`;
 const MAX_LOG_ENTRIES = 400;
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -37,7 +34,9 @@ function save(state: State) {
 }
 
 const saved = loadSave();
-const game = new Game(saved ?? undefined);
+const game = new Game(story, saved ?? undefined);
+document.title = story.title;
+document.querySelector('.brand')!.textContent = story.title;
 
 // -----------------------------------------------------------------------------
 // Rendering
@@ -56,7 +55,7 @@ function appendOutput(outputs: Output[]) {
 let currentSvg = '';
 
 function updateScene() {
-  const svg = renderScene(game.state.room, game.state, game.isDark());
+  const svg = story.scene?.(game.state.room, game.state, game.isDark()) ?? '';
   // Scene ids are unique per render, so compare with ids stripped to detect real changes.
   const signature = svg.replace(/s\d+-/g, '');
   if (signature === currentSvg) return;
@@ -83,7 +82,7 @@ function updateScene() {
 
 function updateStats() {
   const s = game.state;
-  statsEl.innerHTML = `<span class="long">Score </span>${s.score}/${MAX_SCORE}<span class="long"> · Moves ${s.moves}</span>`;
+  statsEl.innerHTML = `<span class="long">Score </span>${s.score}/${story.maxScore}<span class="long"> · Moves ${s.moves}</span>`;
 }
 
 function updateCompass() {
@@ -103,7 +102,7 @@ function chip(label: string, command: string, accent = false) {
 }
 
 /** A short noun for an item, e.g. "brass lantern" -> "lantern". */
-const shortName = (id: string) => ITEMS[id].nouns[1] ?? ITEMS[id].nouns[0];
+const shortName = (id: string) => game.items[id].nouns[1] ?? game.items[id].nouns[0];
 
 function updateChips() {
   chipsEl.replaceChildren();
@@ -113,12 +112,17 @@ function updateChips() {
   }
   chipsEl.append(chip('Look', 'look'), chip('Inventory', 'inventory'), chip('Hint', 'hint'));
   const s = game.state;
-  const carryingLantern = s.items.lantern === 'inv';
-  if (carryingLantern && !s.flags.lanternLit && (game.isDark() || game.room.dark || game.room.exits.down))
-    chipsEl.append(chip('Light lantern', 'light lantern', true));
+  const needsLight = game.isDark() || game.room.dark || game.room.exits.down;
+  for (const id of game.inventory()) {
+    if (game.items[id].lightSource && !game.isLit(id) && needsLight)
+      chipsEl.append(chip(`Light ${shortName(id)}`, `light ${shortName(id)}`, true));
+  }
   for (const id of game.visibleItems()) chipsEl.append(chip(`Take ${shortName(id)}`, `take ${shortName(id)}`, true));
-  if (s.room === 'ferryhut' && !s.flags.wenMet) chipsEl.append(chip('Talk to him', 'talk to man', true));
-  if (s.items.note === 'inv' || s.items.note === s.room) chipsEl.append(chip('Read letter', 'read letter'));
+  for (const c of story.chips?.(game) ?? []) chipsEl.append(chip(c.label, c.command, c.accent));
+  for (const id of Object.keys(game.items)) {
+    const here = s.items[id] === 'inv' || (s.items[id] === s.room && !game.isDark());
+    if (game.items[id].readable && here) chipsEl.append(chip(`Read ${shortName(id)}`, `read ${shortName(id)}`));
+  }
 }
 
 function refresh() {
@@ -233,7 +237,7 @@ async function startDemo(fast = false) {
   appendOutput([{ kind: 'system', text: 'LAZY MODE DEMO — sit back and watch. Press Stop demo (or Esc) to take over.' }]);
   refresh();
 
-  for (const command of WALKTHROUGH) {
+  for (const command of story.walkthrough ?? []) {
     await sleep(thinkDelay);
     for (const ch of command) {
       if (canceled()) return;
