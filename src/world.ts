@@ -308,7 +308,7 @@ export const ROOMS: Record<string, Room> = {
       'Tom’s chair creaks. Wen squeezes his hand hard and says, “Don’t you fucking dare.”',
     ],
     scenery: {
-      'wen|kard|player|man|him|coat': (s) =>
+      'wen|kard|player|man|him|coat|beard|hair|earring': (s) =>
         s.flags.wenMet
           ? 'Wen Kard, and God help you, he is beautiful: copper-red hair falling past his shoulders, a massive ' +
             'scruffy beard the color of a fox in autumn, a gold hoop in one ear, and eyes red-rimmed from weeping. ' +

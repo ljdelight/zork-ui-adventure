@@ -34,6 +34,7 @@ or `?demo=fast` to run at full speed (handy for a quick smoke test). The script 
 ## Layout
 
 - `src/world.ts`: rooms, items and descriptions (the game content)
+- `src/senses.ts`: flavor responses for smelling, licking, kicking, dancing and other whims
 - `src/engine.ts`: parser and game rules (no DOM, so it is testable)
 - `src/scenes.ts`: procedural SVG illustration for each room
 - `src/main.ts`, `src/style.css`, `index.html`: the browser UI

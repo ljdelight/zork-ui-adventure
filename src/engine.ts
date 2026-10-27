@@ -1,5 +1,9 @@
 import { DIRS, type Dir, type Item, type Output, type Room, type State, type Text } from './types';
 import { GAME_SUBTITLE, GAME_TITLE, ITEMS, MAX_SCORE, ROOMS, initialState } from './world';
+import {
+  ACTS, ACT_ALIASES, ALONE, BLIND_ACTIONS, GENERIC, PEOPLE, PERSON_GENERIC, REACTIONS, ROOM_SENSES, VERB_ACTIONS,
+  type Action,
+} from './senses';
 
 const RECIPIENTS = ['girl', 'child', 'ghost', 'figure', 'her'];
 
@@ -142,6 +146,13 @@ export class Game {
       [/^climb down\b/, 'go down'],
       [/^climb up\b/, 'go up'],
       [/^go to\b/, 'go'],
+      [/^put on\b/, 'wear'],
+      [/^try on\b/, 'wear'],
+      [/^listen to\b/, 'listen'],
+      [/^set (?:fire|light) to\b/, 'burn'],
+      [/^shake hands with\b/, 'shake'],
+      [/^lie down\b/, 'sleep'],
+      [/^sit down\b/, 'sit'],
     ];
     for (const [re, replacement] of phrasal) {
       if (re.test(cmd)) {
@@ -231,15 +242,21 @@ export class Game {
       case 'give':
       case 'offer':
       case 'feed':
+        return this.give(verb, obj);
       case 'throw':
       case 'toss':
-        return this.give(verb, obj);
+      case 'hurl':
+      case 'fling':
+      case 'chuck':
+      case 'lob':
+      case 'pitch':
+        return this.throwThing(rest);
       case 'ring':
       case 'strike':
       case 'swing':
       case 'push':
       case 'hit':
-        return this.ring(obj);
+        return this.ring(verb, obj);
       case 'talk':
       case 'speak':
       case 'ask':
@@ -283,9 +300,19 @@ export class Game {
         this.system('You close your eyes, and the evening begins again.');
         this.describeRoom();
         return false;
-      default:
+      default: {
+        const action = VERB_ACTIONS[verb];
+        if (action === 'burn') return this.burn(obj);
+        if (action) return this.react(action, verb, obj);
+        const act = ACT_ALIASES[verb];
+        if (act) {
+          const { text, rooms } = ACTS[act];
+          this.say(resolve(rooms?.[this.state.room] ?? text, this.state));
+          return true;
+        }
         this.say(`I don't know how to "${verb}". Type HELP for a list of things to try.`);
         return false;
+      }
     }
   }
 
@@ -300,10 +327,13 @@ export class Game {
     return new RegExp(`(^|\\s)${noun}(\\s|$)`).test(phrase);
   }
 
-  /** Find something the player can refer to: carried or visible items first, then room scenery. */
-  private findTarget(phrase: string): Target | null {
+  /**
+   * Find something the player can refer to: carried or visible items first, then room scenery.
+   * With `blind`, things in the room can be found by feel even in the dark.
+   */
+  private findTarget(phrase: string, blind = false): Target | null {
     if (!phrase) return null;
-    const dark = this.isDark();
+    const dark = this.isDark() && !blind;
     const candidates = Object.values(ITEMS).filter((item) => {
       const loc = this.state.items[item.id];
       return loc === 'inv' || (!dark && loc === this.state.room);
@@ -447,6 +477,8 @@ export class Game {
         'LOOKING: look (l), examine (x) <thing>, read <thing>',
         'THINGS:  take <thing>, drop <thing>, inventory (i), open, unlock',
         'OTHER:   light/extinguish lantern, tie, give <thing> to <someone>, ring',
+        'SENSES:  smell, taste, touch, listen, and anything else you might try:',
+        '         kick, lick, roll, shake, throw, pray, dance, sing...',
         'META:    score, hint, again (g), restart',
         '',
         'Your progress is saved automatically in this browser.',
@@ -776,14 +808,6 @@ export class Game {
     }
 
     if (!RECIPIENTS.some((r) => this.matchesNoun(recipient, r))) {
-      if (verb === 'throw' || verb === 'toss') {
-        const t = this.findTarget(objPhrase);
-        if (t?.kind === 'item' && this.has(t.id)) {
-          this.state.items[t.id] = this.state.room;
-          this.say(`You toss the ${t.name}. It lands a short way off.`);
-          return true;
-        }
-      }
       this.say('There is no one here to give anything to.');
       return false;
     }
@@ -813,8 +837,11 @@ export class Game {
     return true;
   }
 
-  private ring(phrase: string): boolean {
+  private ring(verb: string, phrase: string): boolean {
     if (phrase && !/\bbell\b/.test(phrase)) {
+      if (verb === 'push') return this.react('push', verb, phrase);
+      if (verb === 'swing') return this.react('shake', verb, phrase);
+      if (verb !== 'ring') return this.react('hit', verb, phrase);
       const t = this.findTarget(phrase);
       if (!t) this.notHere(phrase);
       else this.say('Nothing happens.');
@@ -937,11 +964,140 @@ export class Game {
         'You raise it to your mouth, and stop. It is not for the living. Your mother taught you that much.',
       );
     } else if (t) {
-      this.say("That doesn't look edible.");
+      const r = REACTIONS[this.reactionKey(t)];
+      const text = r?.eat ?? r?.taste;
+      this.say(text ? resolve(text, this.state) : this.genericReaction('eat', t));
     } else {
       this.notHere(phrase || 'food');
     }
     return false;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Flavor: smelling, licking, kicking, rolling and everything else
+
+  private reactionKey(t: Target): string {
+    return t.kind === 'item' ? t.id : `${this.state.room}/${t.id}`;
+  }
+
+  private genericReaction(action: Action, t: Target): string {
+    const key = this.reactionKey(t);
+    if (PEOPLE.has(key)) return PERSON_GENERIC[action] ?? 'You think better of it.';
+    return GENERIC[action](t.name, t.kind === 'scenery');
+  }
+
+  private react(action: Action, verb: string, phrase: string): boolean {
+    phrase = phrase.replace(/^(?:to|on|of|in|into|over|against)\s+/, '').trim();
+    if (!phrase || ['around', 'about', 'room', 'here', 'air', 'yourself', 'self', 'me'].includes(phrase)) {
+      const text = ROOM_SENSES[this.state.room]?.[action] ?? ALONE[action];
+      this.say(text ?? `${capitalize(verb)} what?`);
+      return false;
+    }
+    const t = this.findTarget(phrase, BLIND_ACTIONS.has(action));
+    if (!t) {
+      this.notHere(phrase);
+      return false;
+    }
+    const text = REACTIONS[this.reactionKey(t)]?.[action];
+    this.say(text ? resolve(text, this.state) : this.genericReaction(action, t));
+    return false;
+  }
+
+  private burn(phrase: string): boolean {
+    if (!this.has('lantern') || !this.state.flags.lanternLit) {
+      this.say(this.has('lantern') ? 'Your lantern is not lit.' : 'You have nothing to burn it with.');
+      return false;
+    }
+    if (phrase && this.findTarget(phrase)?.id === 'note' && this.has('note')) {
+      this.state.items.note = 'nowhere';
+      this.say(
+        'You hold the letter to the flame. It curls, blackens, and goes up in a little rush of light. ' +
+          'Anselm’s last words drift away as smoke. You find you remember every one of them anyway.',
+      );
+      return true;
+    }
+    return this.react('burn', 'burn', phrase);
+  }
+
+  /** THROW KEY DOWN WELL, THROW CAKE AT GIRL, THROW CANDLESTICK OFF TOWER... */
+  private throwThing(raw: string): boolean {
+    // Uses the raw phrase, since "at" and "with" are stopwords elsewhere.
+    const phrase = raw.split(' ').filter((w) => w && !['the', 'a', 'an', 'some', 'my'].includes(w)).join(' ');
+    const m = phrase.match(/^(.*?)\s+(to|at|in|into|down|off|over|out|onto|on|across|through)(?:\s+(.*))?$/);
+    const objPhrase = m ? m[1] : phrase;
+    const targetPhrase = m?.[3] ?? '';
+    const where = m ? `${m[2]} ${targetPhrase}` : '';
+    if (!objPhrase) {
+      this.say('Throw what?');
+      return false;
+    }
+    if (RECIPIENTS.some((r) => this.matchesNoun(targetPhrase, r))) return this.give('give', `${objPhrase} to ${targetPhrase}`);
+
+    const t = this.findTarget(objPhrase);
+    if (!t) {
+      this.notHere(objPhrase);
+      return false;
+    }
+    if (t.kind !== 'item' || !this.has(t.id)) {
+      this.say(t.kind === 'scenery' ? 'You can’t pick that up, let alone throw it.' : "You aren't holding that.");
+      return false;
+    }
+    const { id, name } = t;
+    const room = this.state.room;
+
+    if (id === 'lantern') {
+      this.say('You draw back your arm, and then you think about the dark. You keep hold of the lantern.');
+      return false;
+    }
+    if (room === 'well' && /\b(well|shaft|down|hole)\b/.test(where)) {
+      if (id === 'rope') {
+        this.say('You would rather keep hold of one end. Perhaps tie it to the crossbeam.');
+        return false;
+      }
+      this.state.items[id] = 'wellbottom';
+      this.say(
+        `You drop the ${name} into the well. A long, long moment later: a flat splash.` +
+          (id === 'key' ? ' Brother Anselm would be pleased. You are not.' : ''),
+      );
+      return true;
+    }
+    if (room === 'belfry' && /\b(off|over|out|down|arch|arches|edge|fields|figures|valley|tower)\b/.test(where)) {
+      if (id === 'clapper') {
+        this.say('You did not drag it all the way up here to throw it off the tower.');
+        return false;
+      }
+      this.state.items[id] = 'cloister';
+      this.say(
+        `You fling the ${name} out through the arches. It tumbles a long way and lands somewhere in the ` +
+          'cloister graveyard. Down in the fields, a few of the figures turn their heads to watch it fall.',
+      );
+      return true;
+    }
+    if ((room === 'shore' || room === 'tidepools') && /\b(sea|water|waves|pool|pools|ocean|surf|in|into)\b/.test(where)) {
+      if (id === 'note') {
+        this.state.items.note = 'nowhere';
+        this.say('The sea takes Anselm’s letter, turns it over twice like someone reading it, and pulls it under.');
+        return true;
+      }
+      this.say(
+        `You draw back your arm, and the sea goes very quiet, as if waiting for the ${name}. ` +
+          'You lower your arm. Whatever it wants, it is not having that.',
+      );
+      return false;
+    }
+
+    const at = targetPhrase ? this.findTarget(targetPhrase) : null;
+    if (at?.id === 'wen' && room === 'ferryhut') {
+      this.say(`Wen catches the ${name} one-handed without looking up, and lobs it straight back to you. “Manners.”`);
+      return false;
+    }
+    this.state.items[id] = room;
+    if (at) this.say(`The ${name} strikes the ${at.name} and drops to the ground.`);
+    else {
+      const flavor = REACTIONS[id]?.throw;
+      this.say(flavor ? resolve(flavor, this.state) : GENERIC.throw(name, false));
+    }
+    return true;
   }
 }
 

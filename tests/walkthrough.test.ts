@@ -82,6 +82,53 @@ describe('parser and rules', () => {
     run(g, 's');
     run(g, 'g');
     expect(g.state.room).toBe('cottage');
-    expect(run(g, 'dance')).toMatch(/don't know how/);
+    expect(run(g, 'frobnicate')).toMatch(/don't know how/);
+  });
+
+  it('answers whacky verbs with flavor text', () => {
+    const g = new Game();
+    expect(run(g, 'smell cake')).toMatch(/Clove and nutmeg/);
+    expect(run(g, 'lick the lantern')).toMatch(/Brass and soot/);
+    expect(run(g, 'finger the table')).toMatch(/warm in one place/);
+    expect(run(g, 'sniff')).toMatch(/Peat smoke/);
+    expect(run(g, 'listen to the door')).toMatch(/ear to it too/);
+    expect(run(g, 'kick fire')).toMatch(/face in them/);
+    expect(run(g, 'roll')).toMatch(/roll about in the frost/);
+    g.state.room = 'stones';
+    expect(run(g, 'dance')).toMatch(/turned to stone/);
+    expect(run(g, 'lick the girl')).toMatch(/Absolutely not/);
+    g.state.room = 'ferryhut';
+    expect(run(g, 'pull beard')).toMatch(/Everybody checks/);
+    expect(run(g, 'fart')).toMatch(/Tom would have loved/);
+  });
+
+  it('lets senses work by feel in the dark', () => {
+    const g = new Game();
+    g.state.flags.ropeTied = true;
+    g.state.room = 'wellbottom';
+    expect(run(g, 'touch key')).toMatch(/So cold it hurts/);
+    expect(run(g, 'feel around')).toMatch(/swaying rope/);
+    expect(run(g, 'take key')).toMatch(/too dark/);
+  });
+
+  it('throws things where they would land', () => {
+    const g = new Game();
+    g.state.room = 'well';
+    g.state.items.key = 'inv';
+    g.state.items.lantern = 'inv';
+    run(g, 'throw key down the well');
+    expect(g.state.items.key).toBe('wellbottom');
+    expect(run(g, 'throw lantern')).toMatch(/keep hold of the lantern/);
+    expect(g.state.items.lantern).toBe('inv');
+
+    g.state.room = 'belfry';
+    g.state.items.candlestick = 'inv';
+    run(g, 'hurl candlestick off the tower');
+    expect(g.state.items.candlestick).toBe('cloister');
+
+    g.state.room = 'stones';
+    g.state.items.cake = 'inv';
+    run(g, 'throw cake at girl');
+    expect(g.state.flags.childFed).toBe(true);
   });
 });
