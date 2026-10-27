@@ -36,7 +36,24 @@ function save(state: State) {
 const saved = loadSave();
 const game = new Game(story, saved ?? undefined);
 document.title = story.title;
-document.querySelector('.brand')!.textContent = story.title;
+const brandEl = document.querySelector('.brand')!;
+brandEl.textContent = story.title;
+if (__COMMIT__) {
+  // The build's commit, linking to the repo itself.
+  const commit = document.createElement(__REPO_URL__ ? 'a' : 'span');
+  commit.className = 'commit';
+  commit.textContent = __COMMIT__;
+  if (commit instanceof HTMLAnchorElement) {
+    commit.href = __REPO_URL__;
+    commit.target = '_blank';
+    commit.rel = 'noopener';
+    commit.title = 'Source on GitHub';
+  }
+  const build = document.createElement('span');
+  build.className = 'build';
+  build.append('(', commit, ')');
+  brandEl.append(' ', build);
+}
 
 // -----------------------------------------------------------------------------
 // Rendering

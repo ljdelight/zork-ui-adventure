@@ -66,6 +66,26 @@ button {
   white-space: nowrap;
 }
 
+.brand .commit {
+  font-family: var(--mono);
+  font-size: 0.6em;
+  color: var(--ink-dim);
+  text-decoration: none;
+}
+
+/* The smallest phones need the room for the header buttons. */
+@media (max-width: 360px) {
+  .brand .build {
+    display: none;
+  }
+}
+
+.brand a.commit:hover,
+.brand a.commit:focus-visible {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
 .stats {
   flex: 1;
   text-align: right;
